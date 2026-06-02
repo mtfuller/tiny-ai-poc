@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -112,6 +113,44 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 		return nil, fmt.Errorf("decoding response: %w", err)
 	}
 	return payload.Models, nil
+}
+
+// ChatStream sends a streaming chat request, calling onToken for each response chunk.
+func (c *Client) ChatStream(ctx context.Context, req ChatRequest, onToken func(token string, done bool)) error {
+	req.Stream = true
+	data, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshalling request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/chat", bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("building request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	httpResp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("ollama POST /api/chat: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ollama POST /api/chat returned %d", httpResp.StatusCode)
+	}
+
+	scanner := bufio.NewScanner(httpResp.Body)
+	for scanner.Scan() {
+		var chunk ChatResponse
+		if err := json.Unmarshal(scanner.Bytes(), &chunk); err != nil {
+			continue
+		}
+		onToken(chunk.Message.Content, chunk.Done)
+		if chunk.Done {
+			break
+		}
+	}
+	return scanner.Err()
 }
 
 func (c *Client) post(ctx context.Context, path string, body, out any) error {
