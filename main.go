@@ -1,6 +1,6 @@
 package main
 
-import "github.com/mtfuller/starterpack-go-cli/cmd"
+import "github.com/mtfuller/tiny-ai-poc/cmd"
 
 func main() {
 	cmd.Execute()

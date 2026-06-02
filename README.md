@@ -1,184 +1,87 @@
-# starterpack-go-cli
+# tiny-ai
 
-A state-of-the-art Go CLI application template that includes many features out-of-the-box to help developers quickly bootstrap a professional command-line application.
+A proof-of-concept general-purpose AI assistant powered by small, locally-run language models via [Ollama](https://ollama.com).
 
-## Features
+## The Thesis
 
-✨ **Out-of-the-box features:**
+Large cloud models are powerful but expensive. Tiny models (Llama 3.2 1B/2B, etc.) are fast, free, and fully private — but they require more engineering to produce reliable results. This project explores whether a combination of:
 
-- 🎯 **Argument Parsing**: Built with [Cobra](https://github.com/spf13/cobra) for robust command-line interface
-- 📝 **Structured Logging**: Custom logger with multiple log levels (DEBUG, INFO, WARN, ERROR)
-- 🎨 **Colored Text Output**: ANSI color support for beautiful terminal output
-- ⏳ **Spinner Animations**: Visual feedback for long-running operations
-- 📦 **Version Command**: Built-in version management with build metadata
-- ❓ **Help Command**: Auto-generated help documentation for all commands
-- ✅ **Unit Tests**: Comprehensive unit tests for all packages
-- 🧪 **Integration Tests**: End-to-end integration tests for CLI commands
-- 🔨 **Taskfile**: Easy build, test, and run commands with [Task](https://taskfile.dev)
+- **Structured agent pipelines** (explicit, inspectable reasoning steps)
+- **Programmatic context management** (selective memory, token budgets)
+- **Constrained prompt engineering** (tight output schemas, chain-of-thought hints)
+
+…can close enough of the capability gap to build a genuinely useful tool.
+
+## Prerequisites
+
+- Go 1.21+
+- [Ollama](https://ollama.com) running locally (`ollama serve`)
+- A small model pulled: `ollama pull llama3.2:latest`
+- [Task](https://taskfile.dev) (optional)
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.21 or higher
-- [Task](https://taskfile.dev) (optional, for build automation)
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/mtfuller/starterpack-go-cli.git
-cd starterpack-go-cli
-```
-
-2. Build the application:
-```bash
+# Build
 task build
+
+# Start a chat session
+./tiny-ai chat
+
+# Use a specific model
+./tiny-ai chat --model llama3.2:1b
+
+# Point at a remote Ollama instance
+./tiny-ai chat --model llama3.2:latest --ollama-url http://my-server:11434
 ```
 
-3. Run the application:
-```bash
-./starterpack-go-cli --help
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `chat` | Interactive multi-turn chat session |
+| `version` | Print version / build info |
+
+Global flags: `--verbose / -v`, `--log-level / -l`
+
+## Project Structure
+
 ```
-
-## Usage
-
-### Available Commands
-
-#### Version Command
-Display version information:
-```bash
-./starterpack-go-cli version
-```
-
-Short version output:
-```bash
-./starterpack-go-cli version --short
-```
-
-#### Greet Command
-Simple greeting with colored output:
-```bash
-./starterpack-go-cli greet Alice
-```
-
-#### Calc Command
-Perform calculations with different operations:
-```bash
-./starterpack-go-cli calc 10 5 --operation add
-./starterpack-go-cli calc 10 5 --operation subtract
-./starterpack-go-cli calc 10 5 --operation multiply
-./starterpack-go-cli calc 10 5 --operation divide
-```
-
-#### Process Command
-Demonstrates spinner animation and logging:
-```bash
-./starterpack-go-cli process
-```
-
-### Global Flags
-
-- `-v, --verbose`: Enable verbose output (debug level logging)
-- `-l, --log-level`: Set log level (debug, info, warn, error)
-- `-h, --help`: Display help information
-
-### Examples with Flags
-
-Enable verbose logging:
-```bash
-./starterpack-go-cli greet World --verbose
-```
-
-Set specific log level:
-```bash
-./starterpack-go-cli process --log-level debug
+.
+├── cmd/                    # Cobra CLI commands
+│   ├── root.go
+│   ├── chat.go             # Interactive chat command
+│   └── version.go
+├── pkg/
+│   ├── ollama/             # Ollama HTTP client (Chat, Generate, ListModels)
+│   └── agent/              # Pipeline primitives: Step, State, Pipeline
+├── internal/
+│   ├── color/              # ANSI terminal colors
+│   ├── logger/             # Structured leveled logger
+│   ├── spinner/            # Progress spinner
+│   └── version/            # Build-time version info
+├── tests/                  # Integration tests
+├── Taskfile.yml
+└── CLAUDE.md               # AI dev context
 ```
 
 ## Development
 
-### Running Tests
-
-Run all tests:
 ```bash
-task test
-```
-
-Run only unit tests:
-```bash
-task test-unit
-```
-
-Run only integration tests:
-```bash
+task test            # all tests
+task test-unit       # unit tests only
 task test-integration
+task coverage        # HTML coverage report
+task lint            # go vet + gofmt check
 ```
 
-Generate coverage report:
-```bash
-task coverage
-```
+## Design Principles
 
-### Building
-
-Build the binary:
-```bash
-task build
-```
-
-Install to GOPATH/bin:
-```bash
-task install
-```
-
-### Project Structure
-
-```
-.
-├── cmd/                    # Command definitions
-│   ├── root.go            # Root command
-│   ├── version.go         # Version command
-│   ├── greet.go           # Example greet command
-│   ├── calc.go            # Example calc command
-│   └── process.go         # Example process command
-├── internal/              # Internal packages
-│   ├── color/             # Colored text utilities
-│   ├── logger/            # Structured logging
-│   ├── spinner/           # Spinner animations
-│   └── version/           # Version management
-├── pkg/                   # Public packages
-│   └── example/           # Example business logic
-├── tests/                 # Integration tests
-├── main.go               # Application entry point
-├── Taskfile.yml          # Build and test automation
-└── README.md             # This file
-```
-
-## Adding New Commands
-
-To add a new command, create a new file in the `cmd/` directory:
-
-```go
-package cmd
-
-import (
-    "github.com/spf13/cobra"
-    "github.com/mtfuller/starterpack-go-cli/internal/color"
-)
-
-var myCmd = &cobra.Command{
-    Use:   "mycommand",
-    Short: "Description of my command",
-    Run: func(cmd *cobra.Command, args []string) {
-        color.Success("My command executed!")
-    },
-}
-
-func init() {
-    rootCmd.AddCommand(myCmd)
-}
-```
+1. **Explicit over implicit** — every reasoning step is a named `Step` in a `Pipeline`, not a magic prompt.
+2. **Token budget discipline** — context is constructed programmatically; nothing is appended naively.
+3. **Small model assumptions** — prompts are short, output formats are constrained, multi-step > single-shot.
+4. **Local first** — no cloud APIs required; works entirely with Ollama on localhost.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT

@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  BINARY_NAME: starterpack-go-cli
+  BINARY_NAME: tiny-ai
   VERSION:
     sh: echo "${VERSION:-dev}"
   COMMIT:
@@ -9,9 +9,9 @@ vars:
   BUILD_DATE:
     sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
   LDFLAGS: >-
-    -ldflags "-X github.com/mtfuller/starterpack-go-cli/internal/version.Version={{.VERSION}}
-    -X github.com/mtfuller/starterpack-go-cli/internal/version.Commit={{.COMMIT}}
-    -X github.com/mtfuller/starterpack-go-cli/internal/version.BuildDate={{.BUILD_DATE}}"
+    -ldflags "-X github.com/mtfuller/tiny-ai-poc/internal/version.Version={{.VERSION}}
+    -X github.com/mtfuller/tiny-ai-poc/internal/version.Commit={{.COMMIT}}
+    -X github.com/mtfuller/tiny-ai-poc/internal/version.BuildDate={{.BUILD_DATE}}"
 
 tasks:
   default:
@@ -48,6 +48,11 @@ tasks:
     cmds:
       - go run main.go
 
+  chat:
+    desc: Start a chat session (requires Ollama running locally)
+    cmds:
+      - go run main.go chat {{.CLI_ARGS}}
+
   clean:
     desc: Remove built binaries
     cmds:
@@ -63,9 +68,15 @@ tasks:
       - echo "Installed to $(go env GOPATH)/bin/{{.BINARY_NAME}}"
 
   coverage:
-    desc: Run tests with coverage
+    desc: Run tests with coverage report
     cmds:
       - echo "Running tests with coverage..."
       - go test -coverprofile=coverage.out ./...
       - go tool cover -html=coverage.out -o coverage.html
-      - echo "Coverage report generated{{":"}} coverage.html"
+      - echo "Coverage report{{":"}} coverage.html"
+
+  lint:
+    desc: Run go vet and formatting check
+    cmds:
+      - go vet ./...
+      - gofmt -l .
