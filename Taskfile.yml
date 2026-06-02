@@ -80,3 +80,18 @@ tasks:
     cmds:
       - go vet ./...
       - gofmt -l .
+
+  wails:dev:
+    desc: Run app in development mode with hot reload
+    cmds:
+      - wails dev
+
+  wails:build:
+    desc: Build production desktop binary
+    cmds:
+      - wails build
+
+  wails:generate:
+    desc: Regenerate Wails TypeScript bindings
+    cmds:
+      - wails generate module
