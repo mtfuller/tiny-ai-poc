@@ -2,106 +2,79 @@
 applyTo: "**/*.go"
 ---
 
-# Coding Standards — Starterpack Go CLI (Concise)
+# Coding Standards — tiny-ai-poc
 
 ## Style & Naming
-- Packages: lowercase, single word (logger, color, spinner, version).  
-- Files: lowercase with underscores (user_service.go) or without (greet.go, calc.go).  
-- Functions: Exported CamelCase, unexported camelCase.  
-- Vars: descriptive; common short names ok (cmd, err, ctx, args).  
+- Packages: lowercase, single word (`ollama`, `agent`, `logger`).
+- Files: lowercase with underscores or without (`chat.go`, `summarize_step.go`).
+- Functions: exported CamelCase, unexported camelCase.
 - Constants: CamelCase or UPPER_SNAKE_CASE.
 
 ## File Layout
-Order: package → imports (stdlib, external, internal) → constants → types → init() → constructors → methods → helpers.
+Order: `package` → imports (stdlib, external, internal) → constants → types → constructors → methods → helpers.
 
-Example:
 ```go
-package cmd
+package agent
 
 import (
+    "context"
     "fmt"
-    "os"
-    
-    "github.com/spf13/cobra"
-    
-    "github.com/mtfuller/starterpack-go-cli/internal/color"
-    "github.com/mtfuller/starterpack-go-cli/internal/logger"
+
+    "github.com/mtfuller/tiny-ai-poc/pkg/ollama"
+    "github.com/mtfuller/tiny-ai-poc/internal/logger"
 )
 ```
 
 ## Errors
-- Always check errors and add context: fmt.Errorf("...: %w", err).  
-- Log errors with logger at appropriate level (logger.Error, logger.Warn).  
-- Exit with os.Exit(1) for fatal errors in command execution.
-- Use cobra.Command.RunE for commands that can fail; return errors rather than os.Exit.
+- Always wrap: `fmt.Errorf("context: %w", err)`.
+- Use `logger.Error` / `logger.Warn` for operational errors.
+- Commands use `RunE` and return errors; root handler calls `os.Exit(1)`.
 
-## Logging
-- Use custom logger from internal/logger with structured formatting.  
-- Levels: DEBUG, INFO, WARN, ERROR (controlled via --verbose or --log-level flags).  
-- Log important operations with context (logger.Info, logger.Debug).
-- Use color package for user-facing output (color.Success, color.Error, color.Info, color.Warn).
+## Ollama Client Usage
+- Always pass `context.Context` as the first argument.
+- Keep `Stream: false` until streaming is explicitly required.
+- Construct an interface (`ChatClient`) in consuming packages so tests can mock without a live Ollama.
 
-## Cobra Commands (pattern)
-1. Define cobra.Command with Use, Short, Long, Example fields.
-2. Add flags in init() function with cmd.Flags() or cmd.PersistentFlags().
-3. Implement Run or RunE function to execute command logic.
-4. Register command with parent using AddCommand() in init().
+## Agent Pipeline Pattern
+1. Define a struct that holds dependencies (Ollama client, model name, options).
+2. Implement `Name() string` and `Run(ctx context.Context, state *agent.State) error`.
+3. Read from `state.Input` or `state.Memory`, write results to `state.Output` or `state.Metadata`.
+4. Register the step in a `Pipeline` from the calling `cmd/` layer.
 
-Example:
 ```go
-var greetCmd = &cobra.Command{
-    Use:   "greet [name]",
-    Short: "Greet someone",
-    Long:  "A longer description of the greet command",
-    Args:  cobra.MaximumNArgs(1),
-    RunE: func(cmd *cobra.Command, args []string) error {
-        name := "World"
-        if len(args) > 0 {
-            name = args[0]
-        }
-        color.Success("Hello, %s!", name)
-        return nil
-    },
+type MyStep struct {
+    client ChatClient
+    model  string
 }
 
-func init() {
-    rootCmd.AddCommand(greetCmd)
-    greetCmd.Flags().BoolP("uppercase", "u", false, "Print in uppercase")
+func (s *MyStep) Name() string { return "my-step" }
+
+func (s *MyStep) Run(ctx context.Context, state *agent.State) error {
+    resp, err := s.client.Generate(ctx, ollama.GenerateRequest{
+        Model:  s.model,
+        Prompt: buildPrompt(state),
+        System: "...",
+    })
+    if err != nil {
+        return fmt.Errorf("generate: %w", err)
+    }
+    state.Output = resp.Response
+    return nil
 }
 ```
 
-## Project Structure
-- cmd/: Cobra commands (one file per command: greet.go, calc.go, etc.)
-- internal/: CLI-specific logic (logger, color, spinner, version)
-- pkg/: Reusable libraries that could be used outside this CLI
-- main.go: Entry point that calls cmd.Execute()
-- Avoid globals except for command definitions and package-level logger instances
-
-## Flags & Arguments
-- Use cobra.Command.Flags() for command-specific flags
-- Use rootCmd.PersistentFlags() for global flags (--verbose, --log-level)
-- Validate required flags with cmd.MarkFlagRequired()
-- Use cobra argument validators (cobra.ExactArgs, cobra.MinimumNArgs, etc.)
-- Bind flags to variables with cmd.Flags().StringVarP() or similar
+## Prompt Engineering Rules
+- System prompts: one clear role sentence, no fluff.
+- User prompts: include only what the model needs — no extra context.
+- Always constrain output format explicitly (e.g., "respond with only valid JSON", "one sentence only").
+- For chain-of-thought, use a separate Step rather than asking the model to think in the same turn.
 
 ## Review Checklist
-- [ ] Tests pass (unit and integration)
-- [ ] No hardcoded values (use flags/args)
-- [ ] Errors logged with context
-- [ ] Proper exit codes (0 for success, 1 for errors)
-- [ ] Input validated (args, flags)
-- [ ] gofmt applied
-- [ ] No sensitive data in logs
-- [ ] Exported functions commented
-- [ ] README updated if new command/flag added
-- [ ] Help text (Short, Long) added to commands
-
-## Patterns
-- Keep cmd/ files focused on CLI interface; move business logic to internal/ or pkg/
-- Use dependency injection where possible (pass logger, config to functions)
-- Define interfaces in consumer packages when needed
-- Use context.Context for cancellation in long-running operations
-- Colored output for user messages; structured logging for debugging
-- Test commands using integration tests that execute the full CLI
-
-This preserves the project's conventions (Cobra, custom logger, color output) and focuses on clear, testable, and user-friendly CLI code.
+- [ ] Tests pass (`task test`)
+- [ ] Ollama calls use `context.Context`
+- [ ] No hardcoded model names (use flags/config)
+- [ ] Step has a unit test with mocked client
+- [ ] Prompt is short and output-constrained
+- [ ] Errors wrapped with context
+- [ ] `gofmt` applied (`task lint`)
+- [ ] README / CLAUDE.md updated if new command or Step added
